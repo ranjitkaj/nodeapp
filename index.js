@@ -51,7 +51,7 @@ const adminSchema = new mongoose.Schema({
     email: String,
     password: String,
     cpassword: String,
-    role : String
+    role : { type: String,  default: "admin"},
     })
 
 const Adminmodel = mongoose.model("Admin" , adminSchema);
@@ -223,36 +223,105 @@ app.get("/",async(req,res)=>{
   
 })
 
-const ADMIN_USER = 'admin@xyz.com';
-const ADMIN_PASS = 'admin';
+// const ADMIN_USER = 'admin@xyz.com';
+// const ADMIN_PASS = 'admin';
 
-app.get("/admin-login", (req, res) => {
-    res.render("adminlogin");
+app.get("/aregister", (req, res) => {
+    res.render("aregister");
 })
 
-app.post("/adminlogin", (req, res) => {
-    if (req.body.email === ADMIN_USER && req.body.password === ADMIN_PASS) {
-        req.session.admin_id = ADMIN_USER;
-        res.redirect("/admin");
-    } else {
-        res.redirect("/admin-login");
-    }
+app.post("/aregister",async (req, res) => {
+  const email = req.body.email;
+  const match = await Adminmodel.findOne({email:email});
+  if(match){
+      res.send("you are already registerd. please login");
+  }
+  else{
+  cpassword = req.body.cpassword;
+  password = req.body.password;
+  if(password!=cpassword){
+      res.send("password not match");
+  }
+  else{
+      const salt = await bcrypt.genSalt(10);
+      const hashpassword = await bcrypt.hash(password,salt);
+      const admin = new Adminmodel({
+          name: req.body.name,
+          email: req.body.email,
+          password: hashpassword
+      })
+      const adminsave = await admin.save();
+      res.redirect("/aregister");
+  }
+}
+})
+ 
+
+      
+
+
+app.get("/admin", (req, res) => {
+    res.render("admin");
 })
 
-
-app.get("/admin", async(req, res) => {
-    if (!req.session.admin_id) {
-        res.redirect("/admin-login");
-        return;
-    }
+app.post("/admin", async(req, res) => {
+        const email = req.body.email;
+        const admin = await Adminmodel.findOne({email});
+        if (!email) {
+        return res.status(400).send('Email is required');
+      }
+      const otp = generateOTP();
+      req.session.otp = otp;
+      req.session.email = email;
+      sendOTPEmail(email, otp); 
+    if(admin){
+        if(await bcrypt.compare(req.body.password, admin.password)){
+            req.session.admin_id = admin._id;
+            console.log(req.session.admin_id);
+            console.log(admin._id);
+            res.render("verify")
+            
+        }
+        else{
+            res.send("password not match");
+        }
+        }
     else{
+        res.send("Admin not found");
+        }
+
+});
+
+app.get("/verify", (req, res) => {
+    res.render("verify");
+})
+
+
+app.post("/verify", async (req, res) => {
+  const { otp } = req.body;
+        if (!req.session.otp || !req.session.email) {
+        return res.status(400).send('No OTP found in session');
+      }
+        if (parseInt(req.session.otp) === parseInt(otp)) {
+        req.session.otp = null;
+        if (!req.session.admin_id) {
+          res.redirect("/admin");
+          return;
+      }
+      else {
         const users = await Usermodel.find({});
+        const files = await Adminmodel.find({});
         res.render("index", {
             title: "this is admin page",
-            users: users
-        })
-    }
+            users: users,
+            files: files   
+      })}
+      } else {
+        res.status(400).send('Invalid OTP');
+      }
+   
 })
+
    
 
 app.post("/register",async(req,res)=>{
