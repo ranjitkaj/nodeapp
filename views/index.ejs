@@ -9,7 +9,7 @@
 </head>
 <body>
     <% if (users!="") { %>
-        <table>
+        <table border="1">
             <thead>
                 <tr>
                     <th>Sno</th>
@@ -40,8 +40,8 @@
         <h1>NO USER FOUND</h1>
         <% }  %>  
 
-        <% if (file!="") { %>
-            <table>
+        <% if (files!="") { %>
+            <table border="1">
                 <thead>
                     <tr>
                         <th>file name</th>
@@ -50,12 +50,12 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <% files.forEach(file => { %>
+                    <% files.forEach((files , index) => { %>
                         <tr>
-                            <td><%= file.originalname %></td>
-                            <td>
-                                <a href="<%= file.url %>" target="_blank">View File</a>
-                            </td>
+                            <td><%= files.originalname %></td>
+                            <td><%= files.filename %></td>
+                            <td><a href="/download/<%= files.filename %>">Download</a></td>
+                            
                         </tr>
                     <% }) %>
                 </tbody>
