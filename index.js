@@ -1,11 +1,14 @@
 const e = require("express");
 const express = require("express")
 const bcrypt = require("bcrypt");
+const passport = require('passport');
 const path = require("path");
 const multer = require('multer');
 const bodyparser = require("body-parser");
 const session = require("express-session");
 const nodemailer = require('nodemailer');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const FacebookStrategy = require('passport-facebook').Strategy;
 const app = express();
 port = process.env.PORT || 3000;
 // const User = require("./database")
@@ -26,6 +29,8 @@ app.use(session({
   saveUninitialized: true,
   cookie: { maxAge: 5 * 60 * 1000 }  
 }));
+
+let users = [];
 
 
 const mongoose = require("mongoose");
@@ -293,6 +298,10 @@ app.post("/admin", async(req, res) => {
 });
 
 app.get("/verify", (req, res) => {
+  if (!req.session.admin_id) {
+    res.redirect("/admin");
+    return;
+  }
     res.render("verify");
 })
 
@@ -402,6 +411,7 @@ app.post("/login",async(req,res)=>{
     if(user){
         if(await bcrypt.compare(req.body.password, user.cpassword)){
             req.session.user_id = user._id;
+            req.session.name = user.name;
             console.log(req.session.user_id);
             console.log(user._id);
             res.render("verifyotp")
@@ -466,9 +476,97 @@ app.get("/dashboard",(req,res)=>{
       }
         if (parseInt(req.session.otp) === parseInt(otp)) {
         req.session.otp = null;
-        res.render("dashboard");
+        res.render("dashboard", { name: req.session.name });
       } else {
         res.status(400).send('Invalid OTP');
       }
 });
 
+app.get("/download/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'files', filename);
+  res.download(filePath);
+})
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Serialize and deserialize user (stores user info in the session)
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((obj, done) => done(null, obj));
+
+passport.use(new GoogleStrategy({
+  clientID: '717128146880-pe4hraoktato1f64pfnf6rft74dsthh0.apps.googleusercontent.com',
+  clientSecret: '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',
+  callbackURL: 'http://localhost:3000/auth/google/callback'
+}, (accessToken, refreshToken, profile, done) => {
+  // Handle the profile and create/store user in your database
+  let user = users.find(u => u.id === profile.id) || {
+      id: profile.id,
+      name: profile.displayName,
+      provider: 'google'
+  };
+  users.push(user);
+  return done(null, user);
+}));
+
+// Passport Facebook OAuth strategy
+passport.use(new FacebookStrategy({
+  clientID: '885744719690339',
+  clientSecret: '1ec197be4f8c6758396fd452bd134847',
+  callbackURL: 'http://localhost:3000/auth/facebook/callback',
+  profileFields: ['id', 'displayName', 'email']
+}, (accessToken, refreshToken, profile, done) => {
+  // Handle the profile and create/store user in your database
+  let user = users.find(u => u.id === profile.id) || {
+      id: profile.id,
+      name: profile.displayName,
+      provider: 'facebook'
+  };
+  users.push(user);
+  return done(null, user);
+}));
+
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile'] }));
+
+// Google OAuth callback route
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/' }),
+    (req, res) => {
+        // Successful login
+        res.redirect('/profile');
+    }
+);
+
+// Facebook authentication route
+app.get('/auth/facebook', passport.authenticate('facebook'));
+
+// Facebook OAuth callback route
+app.get('/auth/facebook/callback',
+    passport.authenticate('facebook', { failureRedirect: '/' }),
+    (req, res) => {
+        // Successful login
+        res.redirect('/profile');
+    }
+);
+app.get('/profile', (req, res) => {
+  if (!req.isAuthenticated()) {
+      return res.redirect('/');
+  }
+  res.render('dashboard', { name: req.user.name });
+  // res.send(`<h1>Profile</h1><p>Welcome ${req.user.name}</p><a href="/logout">Logout</a>`);
+});
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/' }),
+  (req, res) => {
+      res.redirect('/dashboard');
+  }
+);
+
+app.get('/auth/facebook/callback',
+  passport.authenticate('facebook', { failureRedirect: '/' }),
+  (req, res) => {
+      res.redirect('/dashboard');
+  }
+);
