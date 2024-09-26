@@ -1,6 +1,8 @@
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const User = require('./models/User');
+
 const bodyParser = require('body-parser');
 
 const app = express();
@@ -88,6 +90,23 @@ app.get('/admin/dashboard', adminAuth, (req, res) => {
 // User dashboard (protected)
 app.get('/user/dashboard', userAuth, (req, res) => {
   res.send('Welcome to the user dashboard!');
+});
+
+// Role-specific routes
+router.get('/student', checkRole('student'), (req, res) => {
+  res.render('student');
+});
+
+router.get('/employee', checkRole('employee'), (req, res) => {
+  res.render('employee');
+});
+
+router.get('/manager', checkRole('manager'), (req, res) => {
+  res.render('manager');
+});
+
+router.get('/supervisor', checkRole('supervisor'), (req, res) => {
+  res.render('supervisor');
 });
 
 // Logout route

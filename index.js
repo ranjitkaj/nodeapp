@@ -1,5 +1,6 @@
 const e = require("express");
 const express = require("express")
+const router = express.Router();
 const bcrypt = require("bcrypt");
 const passport = require('passport');
 const path = require("path");
@@ -13,6 +14,16 @@ const app = express();
 port = process.env.PORT || 3000;
 // const User = require("./database")
 
+function checkRole(role) {
+  return function (req, res, next) {
+    if (req.session.user && req.session.user.role === role) {
+      next();
+    } else {
+      res.status(403).send('Access Denied');
+    }
+  };
+}
+
 app.listen(port , ()=>{
     console.log(`app is running on port ${port}`)
 })
@@ -24,11 +35,12 @@ app.use(bodyparser.json());
 
 
 app.use(session({
-  secret: "user_id",  
+  secret: "user_id",
   resave: false,
   saveUninitialized: true,
-  cookie: { maxAge: 5 * 60 * 1000 }  
+  cookie: { secure: false, maxAge: 5 * 60 * 1000 }  
 }));
+  
 
 let users = [];
 
@@ -60,6 +72,16 @@ const adminSchema = new mongoose.Schema({
     })
 
 const Adminmodel = mongoose.model("Admin" , adminSchema);
+
+const fileSchema = new mongoose.Schema({
+    name: String,
+    originalname: String,
+    filename: String,
+    path: String,
+    size: Number,
+    type: String,
+  });
+  const Filemodel = mongoose.model("File", fileSchema);
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -101,6 +123,15 @@ const storage = multer.diskStorage({
         if (req.file == undefined) {
           res.send('Error: No File Selected!');
         } else {
+          const file = new Filemodel({
+            name: req.body.name,
+            originalname: req.file.originalname,
+            filename: req.file.filename,
+            path: req.file.path,
+            size: req.file.size,
+            type: req.file.mimetype
+          });
+          file.save();
           res.send(`File uploaded: ${req.file.filename}`);
         }
       }
@@ -275,73 +306,36 @@ app.post("/admin", async(req, res) => {
         if (!email) {
         return res.status(400).send('Email is required');
       }
-      const otp = generateOTP();
-      req.session.otp = otp;
-      req.session.email = email;
-      sendOTPEmail(email, otp); 
+      // const otp = generateOTP();
+      // req.session.otp = otp;
+      // req.session.email = email;
+      // sendOTPEmail(email, otp); 
     if(admin){
         if(await bcrypt.compare(req.body.password, admin.password)){
             req.session.admin_id = admin._id;
             console.log(req.session.admin_id);
-            console.log(admin._id);
-            res.render("verify")
-            
-        }
-        else{
-            res.send("password not match");
-        }
-        }
-    else{
-        res.send("Admin not found");
+            const users = await Usermodel.find({});
+            const files = await Filemodel.find({});
+            res.render("index", {
+                title: "this is admin page",
+                users: users,
+                files: files   
+      })} else{
+          res.send("password not match");
+      }
+        }else{
+          res.send("Admin not found");
         }
 
 });
 
-app.get("/verify", (req, res) => {
-  if (!req.session.admin_id) {
-    res.redirect("/admin");
-    return;
-  }
-    res.render("verify");
-})
-
-
-app.post("/verify", async (req, res) => {
-  const { otp } = req.body;
-        if (!req.session.otp || !req.session.email) {
-        return res.status(400).send('No OTP found in session');
-      }
-        if (parseInt(req.session.otp) === parseInt(otp)) {
-        req.session.otp = null;
-        if (!req.session.admin_id) {
-          res.redirect("/admin");
-          return;
-      }
-      else {
-        const users = await Usermodel.find({});
-        const files = await Adminmodel.find({});
-        res.render("index", {
-            title: "this is admin page",
-            users: users,
-            files: files   
-      })}
-      } else {
-        res.status(400).send('Invalid OTP');
-      }
-   
-})
-
-   
-
 app.post("/register",async(req,res)=>{
-    const email = req.body.email;
+    const {name, email, password , cpassword }  = req.body;
     const match = await Usermodel.findOne({email:email});
     if(match){
         res.send("you are already registerd. please login");
     }
     else{
-    cpassword = req.body.cpassword;
-    password = req.body.password;
     if(password!=cpassword){
         res.send("password not match");
     }
@@ -349,12 +343,11 @@ app.post("/register",async(req,res)=>{
         const salt = await bcrypt.genSalt(10);
         const hashpassword = await bcrypt.hash(password,salt);
         const user = new Usermodel({
-            name: req.body.name,
-            email: req.body.email,
-            cpassword: hashpassword
+            name, email,
+            password: hashpassword
         })
         const usersave = await user.save();
-        res.redirect("/register");
+        res.redirect("/login");
     }
 }
 })
@@ -364,25 +357,60 @@ app.get("/register",(req,res)=>{
     res.render("register");
 })
 
-app.get("/edit/:id",async(req,res)=>{
-    const id = req.params.id;
-    const user = await Usermodel.findById(id);
-    res.render("edit",{
-        user:user
-    })
-})
+app.get("/update/:id",async(req,res)=>{
+    const {id} = req.params;
+    const user = await Usermodel.findById({_id:id});
+    if(user==null){
+       res.redirect("/");
+        }
+    else{
+      res.render("update",{
+          user:user
+      })
+    }
+  })
+
+// app.get("/update/:id",async(req,res)=>{
+//   const {id} = req.params.id;
+//   const user = await Usermodel.findById({_id:id});
+//   if(user==null){
+//       res.redirect("/");
+//   }else{
+//       res.render("update",{
+//           user:user
+//       })
+//   }
+// })
+
+// app.post("/update/:id",async(req,res)=>{
+//   const {id} =req.params.id;
+//   const {name,email, age}=req.body;
+//   const updateuser = await Usermodel.findByIdAndUpdate({_id:id},
+//       {name,email,age},
+//       {new:true})
+//   res.redirect("/");
+// })
 
 
 app.post("/update/:id",async(req,res)=>{
-    const id = req.params.id;
-    const user = new Usermodel({ 
-      name: req.body.name,
-      email: req.body.email,
-      password: req.body.password,
-  })
-  const usersave = await user.save();
-  res.redirect("/admin");
+    const id = req.params;
+    const {name, email, password} = req.body;
+    const salt = await bcrypt.genSalt(10);
+    const hashpassword = await bcrypt.hash(password,salt);
+    const updateuser = await Usermodel.findByIdAndUpdate({_id:id},
+        {name, email, password:hashpassword},
+        {new:true})
+    res.redirect("/admin");
 })
+
+//     const user = new Usermodel({ 
+//       name: req.body.name,
+//       email: req.body.email,
+//       password: req.body.password,
+//   })
+//   const usersave = await user.save();
+//   res.redirect("/admin");
+// })
     
 
   
@@ -390,8 +418,20 @@ app.post("/update/:id",async(req,res)=>{
 app.get("/delete/:id",async(req,res)=>{
     const id = req.params.id;
     const user = await Usermodel.findByIdAndDelete(id);
-    res.redirect("/admin");
-})
+    if (!req.session.admin_id) {
+      res.redirect("/admin");
+      return;
+    } else {
+          const users = await Usermodel.find({});
+            const files = await Filemodel.find({});
+            res.render("index", {
+                title: "this is admin page",
+                users: users,
+                files: files   
+      })}
+    })
+
+  
 
 app.get("/login",(req,res)=>{
     res.render("login");
@@ -399,7 +439,7 @@ app.get("/login",(req,res)=>{
 
 
 app.post("/login",async(req,res)=>{
-    const email = req.body.email;
+    const { email, password }= req.body;
     const user = await Usermodel.findOne({email});
         if (!email) {
           return res.status(400).send('Email is required');
@@ -409,9 +449,11 @@ app.post("/login",async(req,res)=>{
         req.session.email = email;
         sendOTPEmail(email, otp); 
     if(user){
-        if(await bcrypt.compare(req.body.password, user.cpassword)){
+        if(await bcrypt.compare(password, user.password)){
+          req.session.user = { email: req.session.email, role: user.role };
             req.session.user_id = user._id;
             req.session.name = user.name;
+            req.session.role = user.role;
             console.log(req.session.user_id);
             console.log(user._id);
             res.render("verifyotp")
@@ -433,19 +475,29 @@ app.get("/logout",(req,res)=>{
 })
 
 
-app.get("/dashboard",(req,res)=>{
-    if (!req.session.user_id) {
-        res.redirect("/login");
-    }
-    else{
-        res.render("dashboard");
-
-    }
-})
+router.get('/dashboard', (req, res) => {
+  if (req.session.user) {
+    res.render('dashboard', { user: req.session.user });
+  } else {
+    res.redirect('/login');
+  }
+});
 
 
-  
-  // Set up the Nodemailer transporter
+// app.get("/dashboard",(req,res)=>{
+//   if (!req.session.user_id) {
+//     res.redirect("/login");
+// }else{
+//     const user = req.user;
+//     if (user) {
+//       res.render('dashboard', { name: user.name, user, role: user.role  });  
+//     } else {
+//       res.redirect('/login'); 
+//     }
+//   }
+//   })
+
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -476,7 +528,7 @@ app.get("/dashboard",(req,res)=>{
       }
         if (parseInt(req.session.otp) === parseInt(otp)) {
         req.session.otp = null;
-        res.render("dashboard", { name: req.session.name });
+        res.render("dashboard", { name: req.session.name, email: req.session.email, role: req.session.user.role  });
       } else {
         res.status(400).send('Invalid OTP');
       }
@@ -484,23 +536,30 @@ app.get("/dashboard",(req,res)=>{
 
 app.get("/download/:filename", (req, res) => {
   const filename = req.params.filename;
-  const filePath = path.join(__dirname, 'files', filename);
+  const filePath = path.join(__dirname, 'uploads', filename);
   res.download(filePath);
 })
+
+app.get("/delete/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', filename);
+  fs.unlinkSync(filePath);
+  res.redirect("/admin");
+})
+
+
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serialize and deserialize user (stores user info in the session)
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 passport.use(new GoogleStrategy({
   clientID: '717128146880-pe4hraoktato1f64pfnf6rft74dsthh0.apps.googleusercontent.com',
   clientSecret: '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',
-  callbackURL: 'https://nodeapp-v9bf.onrender.com/auth/google/callback'
+  callbackURL: 'http://localhost:3000/auth/google/callback'
 }, (accessToken, refreshToken, profile, done) => {
-  // Handle the profile and create/store user in your database
   let user = users.find(u => u.id === profile.id) || {
       id: profile.id,
       name: profile.displayName,
@@ -510,14 +569,13 @@ passport.use(new GoogleStrategy({
   return done(null, user);
 }));
 
-// Passport Facebook OAuth strategy
 passport.use(new FacebookStrategy({
   clientID: '885744719690339',
   clientSecret: '1ec197be4f8c6758396fd452bd134847',
-  callbackURL: 'https://nodeapp-v9bf.onrender.com/auth/facebook/callback',
+  callbackURL: 'http://localhost:3000/auth/facebook/callback',
   profileFields: ['id', 'displayName', 'email']
 }, (accessToken, refreshToken, profile, done) => {
-  // Handle the profile and create/store user in your database
+
   let user = users.find(u => u.id === profile.id) || {
       id: profile.id,
       name: profile.displayName,
@@ -529,23 +587,19 @@ passport.use(new FacebookStrategy({
 
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile'] }));
 
-// Google OAuth callback route
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {
-        // Successful login
+      
         res.redirect('/profile');
     }
 );
 
-// Facebook authentication route
 app.get('/auth/facebook', passport.authenticate('facebook'));
 
-// Facebook OAuth callback route
 app.get('/auth/facebook/callback',
     passport.authenticate('facebook', { failureRedirect: '/' }),
     (req, res) => {
-        // Successful login
         res.redirect('/profile');
     }
 );
@@ -554,7 +608,6 @@ app.get('/profile', (req, res) => {
       return res.redirect('/');
   }
   res.render('dashboard', { name: req.user.name });
-  // res.send(`<h1>Profile</h1><p>Welcome ${req.user.name}</p><a href="/logout">Logout</a>`);
 });
 
 app.get('/auth/google/callback',
@@ -570,3 +623,42 @@ app.get('/auth/facebook/callback',
       res.redirect('/dashboard');
   }
 );
+
+app.get("/changeRole/:id", async (req, res) => {
+  res.render("changerole" , { user: await Usermodel.findById(req.params.id) });
+})
+
+app.post("/update-role/:id", async (req, res) => {
+  const id = req.params.id;
+  const user = await Usermodel.findById(id);
+  user.role = req.body.role;
+  await user.save();
+  res.redirect("/admin");
+})
+
+
+// Helper function to find user by username
+function findUser(username) {
+  return users.find(user => user.username === username);
+}
+
+router.get("/user", checkRole('user'), (req, res) => {
+  res.render("user");
+})
+
+// Role-specific routes
+router.get('/student', checkRole('student'), (req, res) => {
+  res.render('student');
+});
+
+router.get('/employee', checkRole('employee'), (req, res) => {
+  res.render('employee');
+});
+
+router.get('/manager', checkRole('manager'), (req, res) => {
+  res.render('manager');
+});
+
+router.get('/supervisor', checkRole('supervisor'), (req, res) => {
+  res.render('supervisor');
+});
