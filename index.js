@@ -558,7 +558,7 @@ passport.deserializeUser((obj, done) => done(null, obj));
 passport.use(new GoogleStrategy({
   clientID: '717128146880-pe4hraoktato1f64pfnf6rft74dsthh0.apps.googleusercontent.com',
   clientSecret: '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',
-  callbackURL: 'http://localhost:3000/auth/google/callback'
+  callbackURL: 'https://nodeapp-v9bf.onrender.com/auth/google/callback'
 }, (accessToken, refreshToken, profile, done) => {
   let user = users.find(u => u.id === profile.id) || {
       id: profile.id,
@@ -572,7 +572,7 @@ passport.use(new GoogleStrategy({
 passport.use(new FacebookStrategy({
   clientID: '885744719690339',
   clientSecret: '1ec197be4f8c6758396fd452bd134847',
-  callbackURL: 'http://localhost:3000/auth/facebook/callback',
+  callbackURL: 'https://nodeapp-v9bf.onrender.com/auth/facebook/callback',
   profileFields: ['id', 'displayName', 'email']
 }, (accessToken, refreshToken, profile, done) => {
 
