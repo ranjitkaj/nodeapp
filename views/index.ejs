@@ -13,21 +13,20 @@
             text-align: center;
             background-color: bisque;
             font-family: 'Poppins', sans-serif;
-            margin-top: 5%;
-            padding-left: 5%;
-            padding-right: 5%;
+            margin-top: 2%;
+            width: 100%;
             
         }
         .maindiv{
             border-radius: 25px;
             padding: 2%;
-            padding-left: 10%;
-            padding-right: 10%;
+            padding-left: 3%;
+            padding-right: 3%;
             padding-bottom: 2%;
-            margin-left: 20%;
-            margin-right: 20%;
+            margin-left: 3%;
+            margin-right: 3%;
             height: 10%;
-            width: %;
+            width: 100%;
             background-color: black;
             color: aliceblue;
         }
@@ -42,15 +41,16 @@
     </style>
 </head>
 <body>
-    <% if (users!="") { %>
+    
+    <div class="maindiv">
         <table>
+            <% if (users!="") { %>
             <thead>
                 <tr>
                     <th>Sno</th>
-                    <th>ID</th>
                     <th>Name</th>
                     <th>Email</th>
-                   
+                    <th>password</th>
                     <th>Permitions</th>
                     <th>Action</th>
                 </tr>
@@ -59,9 +59,9 @@
                 <% users.forEach((user,index) => { %>
                  <tr>
                     <td><%= index+1 %></td>
-                    <td><%= user._id %></td>
                     <td><%= user.name %></td>
                     <td><%= user.email %></td>
+                    <td><%= user.password %></td>
                     <td><%= user.role %> <button onclick="location.href='/changeRole/<%= user._id %>'">Change</button></td>
                     <td>
                         <!-- <a href="/update/<%= user._id %>">Update</a> -->
@@ -71,8 +71,9 @@
                  </tr>
                 <% }) %>
             </tbody>
-        </table>
+        
     <% } else{ %>
+    </table>
         <h1>NO USER FOUND</h1>
         <% }  %>  
 
@@ -106,5 +107,9 @@
         
         
         <h1>Register User From Here <a href="/register">Register user</a></h1>
+        <h1>Login User From Here <a href="/login">Login user</a></h1>
+        <h1>Admin Login Here <a href="/admin">Login Admin</a></h1>
+
+    </div>
 </body>
 </html>
