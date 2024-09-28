@@ -534,7 +534,7 @@ router.get('/dashboard', (req, res) => {
       }
 });
 
-app.get("/download/:filename", (req, res) => {
+app.get("https://nodeapp-v9bf.onrender.com/download/:filename", (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, 'uploads', filename);
   res.download(filePath);
